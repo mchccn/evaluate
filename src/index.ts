@@ -1,5 +1,5 @@
-import { MalformedExpression } from "./utils/errors";
-import * as parens from "./utils/parens";
+import { MalformedExpression } from "./errors";
+import * as parens from "./parens";
 
 const ops: Record<string, (a: number, b: number) => number> = {
     "*": (a, b) => a * b,
@@ -9,88 +9,70 @@ const ops: Record<string, (a: number, b: number) => number> = {
     "^": (a, b) => a ** b,
 };
 
-const binop = /^((?:[+-])?(?:\d+(?:\.?\d*)?|\.\d+))([*/^+-])((?:[+-])?(?:\d+(?:\.?\d*)?|\.\d+))$/;
+const number = /^((?:[+-])?(?:\d+(?:\.?\d*)?|\.\d+))$/;
 
-function evaluate(expression: string) {
-    let tokens = reduce();
-
-    const [, a, op, b] = binop.exec(tokens.join("")) ?? [];
-
-    if (a && op && b) {
-        if (!ops[op]) throw new MalformedExpression(`Unknown operator '${op}'.`);
-
-        const result = ops[op](Number(a), Number(b));
-
-        return result;
-    }
-
-    function reduce() {
+const evaluate = (expression: string) =>
+    (function reduce(): number {
         const tokens = expression
             .replace(/(\d|\))\s*\(/g, "$1 * (")
+            .replace(/e/gi, Math.E.toString())
+            .replace(/pi|π/gi, Math.PI.toString())
             .split(/([()^*/+-])/)
             .map((token) => token.trim())
             .filter(($) => !!$);
 
+        tokens.forEach((token) => {
+            if (!number.test(token) && !/^[()^*/+-]$/.test(token)) {
+            }
+        });
+
         const indices = parens.indices(tokens).sort(([ax, ay], [bx, by]) => (ay - ax === by - bx ? ax - bx : ay - ax - by + bx));
 
-        let shift = 0;
+        const [i, j] = indices.find(([, , d]) => d === Math.max(...indices.map(([, , d]) => d))) ?? [];
 
-        const replacements = [] as [number, number, string][];
+        const term = typeof i !== "undefined" && typeof j !== "undefined" ? tokens.slice(i + 1, j) : tokens;
 
-        while (indices.length) {
-            const [i, j] = indices.shift()!;
+        term.forEach((token, index) => {
+            const a = term[index - 1];
+            const b = term[index + 1];
 
-            const term = tokens.slice(i - shift, j + 1);
+            if (/^[\^*/+-]$/.test(token)) {
+                if (!a || !b) throw new MalformedExpression(`Missing operand on operator '${token}'.`);
 
-            if (term[0] === "(" && term[term.length - 1] === ")") {
-                term.pop();
-                term.shift();
+                if (!number.test(a) || !number.test(b)) throw new MalformedExpression(`Invalid operand on operator '${token}'.`);
             }
+        });
 
-            if (binop.test(term.join(""))) {
-                const result = evaluate(term.join(""));
+        function execute(operators: string[]) {
+            while (operators.some((op) => term.includes(op)))
+                for (const [index, token] of Object.entries(term)) {
+                    if (operators.includes(token)) {
+                        const a = term[+index - 1];
+                        const b = term[+index + 1];
 
-                replacements.push([i, j, result.toString()]);
-            } else {
-                let skip = 0;
+                        const results = ops[token](Number(a), Number(b));
 
-                term.forEach((token, i) => {
-                    if (skip) return skip--;
+                        term.splice(+index - 1, 3, results.toString());
 
-                    if (/^[\^*/]$/.test(token)) {
-                        const [a, b] = parens.closest(term, i);
-
-                        term.splice(a, 0, "(");
-                        term.splice(b, 0, ")");
-
-                        skip = b;
+                        break;
                     }
-
-                    return;
-                });
-            }
-
-            console.log(term.join(" "));
+                }
         }
 
-        replacements
-            .sort(([ax, ay], [bx, by]) => (ay - ax === by - bx ? ax - bx : ay - ax - by + bx))
-            .reverse()
-            .forEach(([i, j, result]) => {
-                tokens.splice(i, j - i, result);
-            });
+        execute(["^"]);
 
-        return tokens;
-    }
+        execute(["*", "/"]);
 
-    if (tokens.includes("(")) tokens = reduce();
+        execute(["+", "-"]);
 
-    console.log(tokens.join(" "));
+        if (typeof i !== "undefined" && typeof j !== "undefined") tokens.splice(i, j - i + 1, term.join(""));
 
-    return 0;
-}
+        expression = tokens.join(" ");
 
-evaluate("1 + 1(10 + 2(10 / 5(2 + 2))) + 2(2 * 3)");
+        if (!number.test(expression)) return reduce();
+
+        return Number(expression);
+    })();
 
 export default evaluate;
 module.exports = evaluate;
