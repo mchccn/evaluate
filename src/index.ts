@@ -22,8 +22,9 @@ const evaluate = (expression: string) =>
             .filter(($) => !!$);
 
         tokens.forEach((token) => {
-            if (!number.test(token) && !/^[()^*/+-]$/.test(token)) {
-            }
+            if (/\s/.test(token)) throw new MalformedExpression(`Missing operator: '${token}'.`);
+
+            if (!number.test(token) && !/^[()^*/+-]$/.test(token)) throw new MalformedExpression(`Unknown token '${token}'.`);
         });
 
         const indices = parens.indices(tokens).sort(([ax, ay], [bx, by]) => (ay - ax === by - bx ? ax - bx : ay - ax - by + bx));
