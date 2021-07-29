@@ -25,35 +25,3 @@ export function indices(tokens: string[]) {
 
     return parens;
 }
-
-export function closest(term: string[], i: number) {
-    const astack = [] as [number, string][];
-    const a = [...astack];
-
-    for (let j = i; j > 0; j--) {
-        const token = term[j];
-
-        if (token === ")") {
-            astack.push([j, token]);
-            a.push([j, token]);
-        } else if (token === "(") {
-            astack.pop();
-        }
-    }
-
-    const bstack = [] as [number, string][];
-    const b = [...astack];
-
-    for (let j = i; j < term.length; j++) {
-        const token = term[j];
-
-        if (token === ")") {
-            bstack.push([j, token]);
-            b.push([j, token]);
-        } else if (token === "(") {
-            bstack.pop();
-        }
-    }
-
-    return [(a[a.length - 1]?.[0] ?? i) - 1, (b[b.length - 1]?.[0] ?? i) + 3];
-}
